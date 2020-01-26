@@ -12,8 +12,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--alpha', type=float, help='the alpha paramter of beta distribution')
-parser.add_argument('--beta', type=float, help='the beta parameter of beta distribution')
+parser.add_argument('--alpha', type=float, default=1.0, help='the alpha paramter of beta distribution')
+parser.add_argument('--beta', type=float, default=1.0, help='the beta parameter of beta distribution')
 parser.add_argument('--r', type=int, default=5, help='the r parameter of NB distribution')
 
 parser.add_argument('--num_steps', type=int, default=10, help='the number of discrete steps of HMC')
@@ -21,6 +21,7 @@ parser.add_argument('--step_size', type=float, default=1e-3, help='the size of s
 parser.add_argument('--num_samples', type=int, default=500, help='the number of samples to be generated')
 parser.add_argument('--warm_steps', type=int, default=100, help='the warm up steps of MCMC')
 parser.add_argument('--seed', type=int, default=1234, help='the seed to be used when simulation')
+parser.add_argument('--logit', type=bool, default=False, help='whether to use logit transform')
 args = parser.parse_args()
 
 assert pyro.__version__.startswith('1.1.0')
@@ -28,7 +29,7 @@ pyro.set_rng_seed(args.seed) # set the random seed
 
 
 class NB_Post(object):
-    ''' The class for implementing the MCMC of NB distribution
+    r''' The class for implementing the MCMC of NB distribution
         $X \sim NB(r, p)$, we use MCMC to get the posterior of parameter $p$.
     '''
     def __init__(self, alpha, beta, r):
@@ -44,14 +45,18 @@ class NB_Post(object):
         self.beta = beta
         self.r = r
 
-    def model(self, data):
+    def model(self, data, logit_trans=False):
         '''
         The model to be used by Pyro.
         args:
             data: the data (torch.Tensor) to be used by MCMC
         '''
         assert isinstance(data, torch.Tensor), 'Please use torch.Tensor type as the input.'
-        p = pyro.sample('p', dist.Beta(self.alpha, self.beta))
+        if logit_trans:
+            eta = pyro.sample('eta', dist.Normal(loc=2, scale=np.sqrt(0.5)))
+            p = torch.exp(eta) / (1. + torch.exp(eta))
+        else:
+            p = pyro.sample('p', dist.Beta(self.alpha, self.beta))
         with pyro.plate('data', len(data)):
             pyro.sample('obs', dist.NegativeBinomial(r, p), obs=data)
 
@@ -76,6 +81,18 @@ def plot_density(poster_alpha, poster_beta, post_samples):
     plt.tight_layout()
     plt.savefig('./assets/jeffrey_prior.pdf', dpi=600)
 
+def plot_logit_density(post_samples):
+    plt.figure(figsize=(5, 4))
+    sns.set()
+
+    sns.distplot(post_samples, hist=False, kde=True, kde_kws={'linewidth':1, 'shade':True}, label='Pred')
+    plt.xlim([0.2, 0.9])
+    plt.grid(':')
+    plt.title('Density Plot')
+    plt.xlabel('$p$')
+    plt.ylabel('Density')
+    plt.tight_layout()
+    plt.savefig('./assets/logit_trans.pdf', dpi=600)
 
 
 if __name__ == '__main__':
@@ -90,13 +107,23 @@ if __name__ == '__main__':
     mcmc = MCMC(hmc_kernel, num_samples=args.num_samples, warmup_steps=args.warm_steps)
 
     # sample the posterior
-    mcmc.run(data)
-    posterior_samples = mcmc.get_samples()['p']
+    mcmc.run(data, args.logit)
+    if args.logit:
+        param = 'eta'
+        posterior_samples = mcmc.get_samples()[param]
+        posterior_samples = torch.exp(posterior_samples) / (1. + torch.exp(posterior_samples))
+        plot_logit_density(posterior_samples)
+    else:
+        param = 'p'
+        posterior_samples = mcmc.get_samples()[param]
+        poster_alpha = (alpha + data.sum()).numpy()
+        poster_beta = (len(data) * r + beta).numpy()
+        # plot the estimated and ground truth density
+        plot_density(poster_alpha, poster_beta, posterior_samples)
+    
 
-    # plot the estimated and ground truth density
-    poster_alpha = (alpha + data.sum()).numpy()
-    poster_beta = (len(data) * r + beta).numpy()
-    plot_density(poster_alpha, poster_beta, posterior_samples)
+    
+    
 
 
 
