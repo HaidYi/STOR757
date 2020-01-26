@@ -5,6 +5,8 @@ import torch
 import pyro
 import pyro.distributions as dist
 from pyro.infer import MCMC, HMC
+import numpy as np
+from scipy.stats import beta as Beta
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -54,17 +56,17 @@ class NB_Post(object):
             pyro.sample('obs', dist.NegativeBinomial(r, p), obs=data)
 
 
-def plot_density(truth_dist, post_samples):
-    x = torch.linspace(1e-2, 1-1e-2, 500)
-    truth_density = torch.exp(truth_dist.log_prob(x))
+def plot_density(poster_alpha, poster_beta, post_samples):
+    x = np.linspace(0, 1, 500)
+    truth_density = Beta.pdf(x, poster_alpha, poster_beta)
 
     plt.figure(figsize=(5, 4))
     # sns.set(palette='muted', color_codes=True)
     sns.set()
     
-    ax = sns.lineplot(x, truth_density, label='Pred', linewidth=1)
+    ax = sns.lineplot(x, truth_density, label='Truth', linewidth=1)
     ax.fill_between(x, truth_density, alpha=0.3)
-    sns.distplot(post_samples, hist=False, kde=True, kde_kws={'linewidth':1, 'shade':True}, label='Truth')
+    sns.distplot(post_samples, hist=False, kde=True, kde_kws={'linewidth':1, 'shade':True}, label='Pred')
 
     plt.xlim([0.2, 0.9])
     plt.grid(':')
@@ -72,7 +74,7 @@ def plot_density(truth_dist, post_samples):
     plt.xlabel('$p$')
     plt.ylabel('Density')
     plt.tight_layout()
-    plt.savefig('./assets/conjugate_prior.pdf', dpi=600)
+    plt.savefig('./assets/jeffrey_prior.pdf', dpi=600)
 
 
 
@@ -92,8 +94,9 @@ if __name__ == '__main__':
     posterior_samples = mcmc.get_samples()['p']
 
     # plot the estimated and ground truth density
-    true_dist = dist.Beta(alpha + data.sum(), len(data)*r + beta)
-    plot_density(true_dist, posterior_samples)
+    poster_alpha = (alpha + data.sum()).numpy()
+    poster_beta = (len(data) * r + beta).numpy()
+    plot_density(poster_alpha, poster_beta, posterior_samples)
 
 
 
