@@ -58,12 +58,13 @@ def plot_density(truth_dist, post_samples):
     x = torch.linspace(1e-2, 1-1e-2, 500)
     truth_density = torch.exp(truth_dist.log_prob(x))
 
-    plt.figure(figsize=(3.5, 3))
-    sns.set(palette='muted', color_codes=True)
+    plt.figure(figsize=(5, 4))
+    # sns.set(palette='muted', color_codes=True)
+    sns.set()
     
-    ax = sns.lineplot(x, truth_density, color='b', label='Pred', linewidth=1)
-    ax.fill_between(x, truth_density, color='b', alpha=0.3)
-    sns.distplot(post_samples, hist=False, kde=True, color='g', kde_kws={'linewidth':1, 'shade':True}, label='Truth')
+    ax = sns.lineplot(x, truth_density, label='Pred', linewidth=1)
+    ax.fill_between(x, truth_density, alpha=0.3)
+    sns.distplot(post_samples, hist=False, kde=True, kde_kws={'linewidth':1, 'shade':True}, label='Truth')
 
     plt.xlim([0.2, 0.9])
     plt.grid(':')
@@ -71,7 +72,7 @@ def plot_density(truth_dist, post_samples):
     plt.xlabel('$p$')
     plt.ylabel('Density')
     plt.tight_layout()
-    plt.savefig('density_plot.pdf', dpi=600)
+    plt.savefig('./assets/conjugate_prior.pdf', dpi=600)
 
 
 
