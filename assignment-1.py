@@ -1,4 +1,3 @@
-import os
 import argparse
 
 import torch
@@ -25,7 +24,7 @@ parser.add_argument('--logit', type=bool, default=False, help='whether to use lo
 args = parser.parse_args()
 
 assert pyro.__version__.startswith('1.1.0')
-pyro.set_rng_seed(args.seed) # set the random seed
+pyro.set_rng_seed(args.seed)  # set the random seed
 
 
 class NB_Post(object):
@@ -68,10 +67,10 @@ def plot_density(poster_alpha, poster_beta, post_samples):
     plt.figure(figsize=(5, 4))
     # sns.set(palette='muted', color_codes=True)
     sns.set()
-    
+
     ax = sns.lineplot(x, truth_density, label='Truth', linewidth=1)
     ax.fill_between(x, truth_density, alpha=0.3)
-    sns.distplot(post_samples, hist=False, kde=True, kde_kws={'linewidth':1, 'shade':True}, label='Pred')
+    sns.distplot(post_samples, hist=False, kde=True, kde_kws={'linewidth': 1, 'shade': True}, label='Pred')
 
     plt.xlim([0.2, 0.9])
     plt.grid(':')
@@ -81,11 +80,12 @@ def plot_density(poster_alpha, poster_beta, post_samples):
     plt.tight_layout()
     plt.savefig('./assets/jeffrey_prior.pdf', dpi=600)
 
+
 def plot_logit_density(post_samples):
     plt.figure(figsize=(5, 4))
     sns.set()
 
-    sns.distplot(post_samples, hist=False, kde=True, kde_kws={'linewidth':1, 'shade':True}, label='Pred')
+    sns.distplot(post_samples, hist=False, kde=True, kde_kws={'linewidth': 1, 'shade': True}, label='Pred')
     plt.xlim([0.2, 0.9])
     plt.grid(':')
     plt.title('Density Plot')
@@ -96,13 +96,14 @@ def plot_logit_density(post_samples):
 
 
 if __name__ == '__main__':
+    # create the params of NB distribution
     alpha = torch.tensor(args.alpha)
     beta = torch.tensor(args.beta)
     r = torch.tensor(args.r)
     data = torch.tensor([12, 11, 6, 12, 11, 0, 4, 6, 5, 6])
 
     nb_post = NB_Post(alpha, beta, args.r)
-    # create hmc and mcmc object
+    # create hmc and mcmc object and sample
     hmc_kernel = HMC(nb_post.model, step_size=args.step_size, num_steps=args.num_steps)
     mcmc = MCMC(hmc_kernel, num_samples=args.num_samples, warmup_steps=args.warm_steps)
 
@@ -111,7 +112,9 @@ if __name__ == '__main__':
     if args.logit:
         param = 'eta'
         posterior_samples = mcmc.get_samples()[param]
+        # logit transform
         posterior_samples = torch.exp(posterior_samples) / (1. + torch.exp(posterior_samples))
+        # plot the estimated posterior density
         plot_logit_density(posterior_samples)
     else:
         param = 'p'
@@ -120,16 +123,3 @@ if __name__ == '__main__':
         poster_beta = (len(data) * r + beta).numpy()
         # plot the estimated and ground truth density
         plot_density(poster_alpha, poster_beta, posterior_samples)
-    
-
-    
-    
-
-
-
-
-
-
-
-        
-    
