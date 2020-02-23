@@ -20,6 +20,7 @@ class StateTrans(nn.Module):
         )
 
     def forward(self, q, dq, step_size):
+        q = torch.autograd.grad(q, requires_grad=True)
         dfdq = torch.autograd.grad(self.trans(q).sum(), q, create_graph=True)[0]
 
         new_dq = dq - 1./self.mass * step_size * dfdq
