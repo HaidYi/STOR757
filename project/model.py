@@ -20,7 +20,6 @@ class StateTrans(nn.Module):
         )
 
     def forward(self, q, dq, step_size):
-        q = torch.autograd.grad(q, requires_grad=True)
         dfdq = torch.autograd.grad(self.trans(q).sum(), q, create_graph=True)[0]
 
         new_dq = dq - 1./self.mass * step_size * dfdq
@@ -46,7 +45,7 @@ class VIN(nn.Module):
 
     def model(self, data):
         # set up parameters
-        pyro.module('StateTrans', self.trans)
+        pyro.module('VIN', self)
 
         q = self.q2
         dq = (self.q2 - self.q1) / self.h
@@ -59,7 +58,7 @@ class VIN(nn.Module):
                 pyro.sample('y_{}'.format(t), dist.Normal(loc=q, scale=self.sigma).to_event(1), obs=data[:, t, :])
 
     def evaluate_model(self, data):
-        pyro.module('StateTrans', self.trans)
+        pyro.module('VIN', self)
         q = data[:, 1, :]
         dq = (data[:, 1, :] - data[:, 0, :]) / self.h
         T = data.shape[1]
