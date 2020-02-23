@@ -27,19 +27,27 @@ def get_args():
     parser.add_argument('--sample_size', default=50, type=int, help='number of samples')
     parser.add_argument('--save_dir', default=FILE_DIR, type=str, help='where to save the trained model')
     parser.add_argument('--monitor_interval', default=100, type=int, help='monitor interval')
+    parser.add_argument('--evaluate_interval', default=1000, type=int, help='evaluation interval')
+    parser.add_argument('--use_cuda', action='store_true')
     return parser.parse_args()
 
 
 def train(args):
     # set random seed for reproducing experiments
+    device = 'cuda:0' if args.use_cuda else 'cpu:0'
     np.random.seed(args.seed)
     pyro.set_rng_seed(args.seed)
 
     data = get_dataset(seed=args.seed, samples=args.sample_size)
-    data_q = torch.from_numpy(data['x'])
-    test_data_q = torch.from_numpy(data['test_x'])
+    data_q = torch.tensor(data['x'], dtype=torch.float32).to(device)
+    test_data_q = torch.tensor(data['test_x'], dtype=torch.float32).to(device)
 
-    vin = VIN(args.input_dim, args.hidden_dim, 1.0 / (args.t_span[-1] * args.time_scale))
+    vin = VIN(
+        input_dim=args.input_dim,
+        hidden_dim=args.hidden_dim,
+        batch_size=args.sample_size // 2,
+        num_steps=args.t_span[-1] * args.time_scale,
+        use_cuda=args.use_cuda)
     optimizer = Adam({'lr': args.learning_rate})
 
     svi = SVI(vin.model, vin.guide, optimizer, loss=Trace_ELBO())
@@ -50,8 +58,8 @@ def train(args):
         elbo_list.append(-svi.step(data_q))
         if (i+1) % args.monitor_interval == 0:
             print('Step: {}, Log likelihood: {:.3f}'.format(i+1, elbo_list[-1]))
-        if (i+1) % 1000 == 0:
-            test_logll = -svi.evaluate_loss(test_data_q)
+        if (i+1) % args.evaluate_interval == 0:
+            test_logll = -svi.loss(vin.evaluate_model, svi.guide, test_data_q)
             print('test_logll: {:.3f}'.format(test_logll))
 
     return vin, elbo_list
