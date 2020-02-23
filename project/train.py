@@ -17,7 +17,7 @@ FILE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def get_args():
     parser = argparse.ArgumentParser(description=None)
-    parser.add_argument('--input_dim', default=2, type=int, help='dimensionality of input tensor')
+    parser.add_argument('--input_dim', default=1, type=int, help='dimensionality of input tensor')
     parser.add_argument('--hidden_dim', default=200, type=int, help='hidden dimension of mlp')
     parser.add_argument('--learning_rate', default=1e-3, type=float, help='learning rate')
     parser.add_argument('--max_steps', default=10000, type=int, help='number of training steps')
@@ -39,8 +39,8 @@ def train(args):
     pyro.set_rng_seed(args.seed)
 
     data = get_dataset(seed=args.seed, samples=args.sample_size)
-    data_q = torch.tensor(data['x'], dtype=torch.float32).to(device)
-    test_data_q = torch.tensor(data['test_x'], dtype=torch.float32).to(device)
+    data_q = torch.tensor(data['x'][:, :, 0], dtype=torch.float32).to(device)
+    test_data_q = torch.tensor(data['test_x'][:, :, 0], dtype=torch.float32).to(device)
 
     vin = VIN(
         input_dim=args.input_dim,
