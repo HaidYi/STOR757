@@ -58,8 +58,10 @@ class VIN(nn.Module):
                 pyro.sample('y_{}'.format(t), dist.Normal(loc=q, scale=self.sigma).to_event(1), obs=data[:, t, :])
 
     def evaluate_model(self, data):
+        # set up parameters
         pyro.module('VIN', self)
-        q = data[:, 1, :]
+
+        q = torch.autograd.Variable(data[:, 1, :], requires_grad=True)
         dq = (data[:, 1, :] - data[:, 0, :]) / self.h
         T = data.shape[1]
 
