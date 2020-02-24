@@ -10,7 +10,7 @@ from pyro.infer import SVI, Trace_ELBO
 from pyro.optim import Adam
 
 from data import get_dataset, get_field, get_trajectory
-from model import VIN
+from model import StateTrans, VIN_torch
 
 FILE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -34,7 +34,7 @@ def get_args():
 
 def train(args):
     # set random seed for reproducing experiments
-    device = 'cuda:0' if args.use_cuda else 'cpu:0'
+    device = 'cuda:0' if args.use_cuda else 'cpu'
     np.random.seed(args.seed)
     pyro.set_rng_seed(args.seed)
 
@@ -42,25 +42,30 @@ def train(args):
     data_q = torch.tensor(data['x'][:, :, 0], dtype=torch.float32).to(device)
     test_data_q = torch.tensor(data['test_x'][:, :, 0], dtype=torch.float32).to(device)
 
-    vin = VIN(
-        input_dim=args.input_dim,
-        hidden_dim=args.hidden_dim,
+    trans = StateTrans(args.input_dim, args.hidden_dim)
+    vin = VIN_torch(
+        trans_model=trans,
         batch_size=args.sample_size // 2,
         num_steps=args.t_span[-1] * args.time_scale,
         use_cuda=args.use_cuda)
-    optimizer = Adam({'lr': args.learning_rate})
-
-    svi = SVI(vin.model, vin.guide, optimizer, loss=Trace_ELBO())
+    optimizer = torch.optim.Adam(vin.parameters(), lr=args.learning_rate)
 
     elbo_list = []
     for i in range(args.max_steps):
         # do ELBO gradient and accumulate loss
-        elbo_list.append(-svi.step(data_q))
+        q, logll = vin(data_q)
+        neg_logll = - logll
+
+        optimizer.zero_grad()
+        neg_logll.backward()
+        optimizer.step()
+
+        elbo_list.append(-neg_logll.item())
         if (i+1) % args.monitor_interval == 0:
             print('Step: {}, Log likelihood: {:.3f}'.format(i+1, elbo_list[-1]))
-        if (i+1) % args.evaluate_interval == 0:
-            test_logll = -svi.loss(vin.evaluate_model, svi.guide, test_data_q)
-            print('test_logll: {:.3f}'.format(test_logll))
+        # if (i+1) % args.evaluate_interval == 0:
+        #     test_logll = -svi.loss(vin.evaluate_model, svi.guide, test_data_q)
+        #     print('test_logll: {:.3f}'.format(test_logll))
 
     return vin, elbo_list
 
